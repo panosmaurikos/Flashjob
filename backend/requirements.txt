@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+pyyaml
+kubernetes
+redis
+python-dotenv
+cryptography

@@ -1,0 +1,36 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ~/.kube:/root/.kube:ro
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - KUBE_CONFIG_PATH=/root/.kube/config
+
+  frontend:
+    build:
+      context: ./UI/cloud-native-iot
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./UI/cloud-native-iot:/app
+    depends_on:
+      - backend
+
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6380:6379"
+
+volumes:
+  backend_data:
+  frontend_data:
