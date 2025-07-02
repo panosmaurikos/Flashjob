@@ -8,6 +8,8 @@ import os
 from typing import List, Optional
 import logging
 import json
+from uuid import uuid4
+import base64
 from pydantic import BaseModel
 from redis_client import get_redis_client, set_value, lpush_list, lrange_list
 from cryptography import x509
@@ -17,12 +19,13 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import (
     Encoding, PrivateFormat, NoEncryption, BestAvailableEncryption
 )
+from cryptography.hazmat.primitives.serialization import pkcs12, BestAvailableEncryption
 import datetime
 
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://localhost:5173"],
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -83,6 +86,16 @@ def load_kube_config_custom():
             kubernetes_available = False
 
 load_kube_config_custom()
+
+@app.middleware("http")
+async def user_id_middleware(request: Request, call_next):
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        user_id = str(uuid4())
+    
+    response = await call_next(request)
+    response.set_cookie("user_id", user_id, httponly=True)
+    return response
 
 def get_akri_instances():
     if not kubernetes_available:
@@ -296,7 +309,9 @@ def get_app_log():
 
 @app.get("/check-cert")
 async def check_cert(request: Request):
-    user_id = request.headers.get("X-User-ID", request.client.host)  # Use header or IP as user ID
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID missing")
     cert_key = f"user_cert_{user_id}"
     if redis_client.exists(cert_key):
         return {"has_cert": True}
@@ -304,56 +319,57 @@ async def check_cert(request: Request):
 
 @app.post("/generate-certificate")
 async def generate_certificate(request: Request):
-    user_id = request.headers.get("X-User-ID", request.client.host)
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID missing")
     cert_key = f"user_cert_{user_id}"
-    if redis_client.exists(cert_key):
-        raise HTTPException(status_code=400, detail="Certificate already exists for this user")
+    try:
+        # Generate private key
+        private_key = ec.generate_private_key(ec.SECP384R1())
 
-    # Generate private key and certificate
-    private_key = ec.generate_private_key(ec.SECP384R1())
-    subject = x509.Name([
-        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "MyApp"),
-        x509.NameAttribute(NameOID.COMMON_NAME, f"user_{user_id}")
-    ])
-    builder = (
-        x509.CertificateBuilder()
-        .subject_name(subject)
-        .issuer_name(subject)  # Self-signed
-        .not_valid_before(datetime.datetime.utcnow())
-        .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=730))  # 2 years
-        .serial_number(x509.random_serial_number())
-        .public_key(private_key.public_key())
-        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
-        .add_extension(x509.KeyUsage(digital_signature=True, key_encipherment=True), critical=True)
-        .add_extension(x509.ExtendedKeyUsage([x509.oid.ExtendedKeyUsageOID.CLIENT_AUTH]), critical=False)
-    )
-    certificate = builder.sign(private_key, hashes.SHA384())
+        # Create certificate
+        subject = issuer = x509.Name([
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "MyApp"),
+            x509.NameAttribute(NameOID.COMMON_NAME, f"user_{user_id}"),
+        ])
+        
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(subject)
+            .issuer_name(issuer)
+            .public_key(private_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.datetime.utcnow())
+            .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=365))
+            .add_extension(
+                x509.SubjectAlternativeName([x509.DNSName("localhost")]),
+                critical=False,
+            )
+            .sign(private_key, hashes.SHA256())
+        )
 
-    # Save CRT for server (simulating trust addition)
-    cert_path = os.path.join(BASE_DIR, f"{cert_key}.crt")
-    with open(cert_path, "wb") as f:
-        f.write(certificate.public_bytes(Encoding.PEM))
+        # Create PKCS12 package
+        password = b"password"  # Use a secure password in production
+        pfx = pkcs12.serialize_key_and_certificates(
+            name=cert_key.encode(),
+            key=private_key,
+            cert=cert,
+            cas=None,
+            encryption_algorithm=BestAvailableEncryption(password)
+        )
 
-    # Generate PFX for browser
-    pfx_data = (
-        x509.PKCS12CertificateBuilder()
-        .add_certificate(certificate)
-        .add_key(private_key, None)  # No encryption for simplicity
-        .build()
-        .public_bytes(Encoding.DER)
-    )
-    pfx_path = os.path.join(BASE_DIR, f"{cert_key}.pfx")
-    with open(pfx_path, "wb") as f:
-        f.write(pfx_data)
+        # Convert to base64 for transmission
+        pfx_base64 = base64.b64encode(pfx).decode('utf-8')
+        
+        # Store in Redis
+        redis_client.set(cert_key, "true")
+        redis_client.expire(cert_key, 172800)
 
-    # Simulate adding to trust (adjust as per your Kubernetes setup)
-    subprocess.run(["kubectl", "apply", "-f", cert_path], capture_output=True, text=True, check=True)
-    redis_client.set(cert_key, "true")
-    redis_client.expire(cert_key, 172800)  # 48 hours expiration
-
-    # Return PFX for browser installation
-    with open(pfx_path, "rb") as f:
-        return {"message": "Certificate generated", "pfx": f.read().decode('latin1')}
+        return {"message": "Certificate generated", "pfx": pfx_base64}
+    
+    except Exception as e:
+        logger.error(f"Certificate generation failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Certificate generation error: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

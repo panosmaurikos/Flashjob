@@ -31,6 +31,7 @@ def get_redis_client(max_retries: int = 5, delay: int = 2) -> redis.Redis:
 
 redis_client = get_redis_client()
 
+
 def set_value(key: str, value: Any) -> bool:
     try:
         redis_client.set(key, json.dumps(value) if isinstance(value, (dict, list)) else value)

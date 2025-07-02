@@ -44,15 +44,18 @@ const AppContent: React.FC = () => {
   const navigate = useNavigate();
   const [hasCert, setHasCert] = useState<boolean | null>(null);
 
-  useEffect(() => {
+   useEffect(() => {
     const checkCertificate = async () => {
       try {
-        const response = await axios.get('https://localhost:8000/check-cert', { withCredentials: true });
+        const response = await axios.get('http://localhost:8000/check-cert', {
+          withCredentials: true, // Important for cookies
+        });
+        
         setHasCert(response.data.has_cert);
-        if (!response.data.has_cert) {
-          navigate('/cert-required');
-        } else {
-          axios.get('https://localhost:8000/akri-instances')
+        
+        if (response.data.has_cert) {
+          // Load instances only if certificate exists
+          axios.get('http://localhost:8000/akri-instances', { withCredentials: true })
             .then(response => {
               const fetchedInstances = response.data.instances.map((item: any) => ({
                 uuid: item.metadata.uid,
@@ -64,18 +67,19 @@ const AppContent: React.FC = () => {
               setFilteredInstances(fetchedInstances);
             })
             .catch(error => setStatus(`Error fetching instances: ${error.message}`));
+        } else {
+          navigate('/cert-required');
         }
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        setStatus(`Error checking certificate: ${errorMsg}`);
         navigate('/cert-required');
       }
     };
+    
     checkCertificate();
   }, [navigate]);
 
   const handleFilter = () => {
-    axios.post('https://localhost:8000/filter-instances', filters)
+    axios.post('http://localhost:8000/filter-instances', filters)
       .then(response => {
         setFilteredInstances(response.data);
         setSelectedUuids([]);
@@ -97,35 +101,39 @@ const AppContent: React.FC = () => {
             element={<Navigate to="/home" />}
           />
           <Route
-            path="/home"
-            element={
-              hasCert ? (
-                <div className="container mt-4">
-                  <h1 className="mb-4">Manage FlashJob Operator</h1>
-                  {status && (
-                    <Alert variant={status.includes("Error") ? "danger" : "success"} className="mt-3" dismissible onClose={() => setStatus(null)}>
-                      {status}
-                    </Alert>
-                  )}
-                  <FilterForm
-                    filters={filters}
-                    setFilters={setFilters}
-                    onFilter={handleFilter}
-                    onSelectAll={handleSelectAll}
-                  />
-                  <InstanceTable
-                    instances={filteredInstances}
-                    selectedUuids={selectedUuids}
-                    setSelectedUuids={setSelectedUuids}
-                  />
-                  <RolloutForm
-                    selectedUuids={selectedUuids}
-                    setParentStatus={setStatus}
-                  />
-                </div>
-              ) : <Navigate to="/cert-required" />
-            }
-          />
+  path="/home"
+  element={
+    hasCert === null ? (
+      <div className="text-center mt-5">Checking certificate...</div>
+    ) : hasCert ? (
+      <div className="container mt-4">
+        <h1 className="mb-4">Manage FlashJob Operator</h1>
+        {status && (
+          <Alert variant={status.includes("Error") ? "danger" : "success"} className="mt-3" dismissible onClose={() => setStatus(null)}>
+            {status}
+          </Alert>
+        )}
+        <FilterForm
+          filters={filters}
+          setFilters={setFilters}
+          onFilter={handleFilter}
+          onSelectAll={handleSelectAll}
+        />
+        <InstanceTable
+          instances={filteredInstances}
+          selectedUuids={selectedUuids}
+          setSelectedUuids={setSelectedUuids}
+        />
+        <RolloutForm
+          selectedUuids={selectedUuids}
+          setParentStatus={setStatus}
+        />
+      </div>
+    ) : (
+      <Navigate to="/cert-required" />
+    )
+  }
+/>
           <Route path="/cert-required" element={<CertRequired />} />
           <Route path="/settings/general" element={<Settings />} />
           <Route path="/settings/api" element={<Settings />} />
