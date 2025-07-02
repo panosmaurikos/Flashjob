@@ -208,7 +208,7 @@ def gradual_rollout(uuids, firmware, flashjob_pod_image, step=5, delay=60):
     logger.debug(f"Gradual rollout completed with results: {results}")
     return results
 
-@app.post("/logs/add")
+@app.post("/api/logs/add")
 async def add_log(log: LogEntry):
     log_entry = {
         "timestamp": log.timestamp,
@@ -219,13 +219,13 @@ async def add_log(log: LogEntry):
     redis_client.expire("logs", 172800)
     return {"status": "Log added"}
 
-@app.get("/akri-instances", response_model=dict)
+@app.get("/api/akri-instances", response_model=dict)
 def read_akri_instances():
     akri_data = get_akri_instances()
     set_value("akri_instances", akri_data.get("items", []))
     return {"instances": akri_data.get("items", []) if akri_data else []}
 
-@app.post("/filter-instances", response_model=List[dict])
+@app.post("/api/filter-instances", response_model=List[dict])
 def filter_akri_instances(filters: dict):
     akri_data = get_akri_instances()
     if not akri_data:
@@ -234,7 +234,7 @@ def filter_akri_instances(filters: dict):
     set_value("filtered_instances", filtered)
     return filtered
 
-@app.post("/generate-yaml", response_model=List[dict])
+@app.post("/api/generate-yaml", response_model=List[dict])
 def generate_yaml(data: dict):
     uuids = data.get("uuids", [])
     firmware = data.get("firmware")
@@ -260,7 +260,7 @@ def generate_yaml(data: dict):
     redis_client.expire("logs", 172800)
     return results
 
-@app.get("/logs", response_model=dict)
+@app.get("/api/logs", response_model=dict)
 def get_logs():
     logs = lrange_list("logs", 0, -1)
     formatted_logs = [
@@ -274,7 +274,7 @@ def get_logs():
     ]
     return {"logs": formatted_logs}
 
-@app.get("/logs/filter")
+@app.get("/api/logs/filter")
 def filter_logs(type: Optional[str] = None, start_time: Optional[float] = None, end_time: Optional[float] = None):
     logs = lrange_list("logs", 0, -1)
     filtered_logs = [
@@ -294,7 +294,7 @@ def filter_logs(type: Optional[str] = None, start_time: Optional[float] = None, 
     ]
     return {"logs": formatted_logs}
 
-@app.get("/logs/file")
+@app.get("/api/logs/file")
 def get_app_log():
     log_file = os.path.join(BASE_DIR, 'app.log')
     if not os.path.exists(log_file):
@@ -307,7 +307,7 @@ def get_app_log():
         logger.error(f"Failed to read app.log: {e}")
         return {"logs": [f"Error reading log file: {e}"]}
 
-@app.get("/check-cert")
+@app.get("/api/check-cert")
 async def check_cert(request: Request):
     user_id = request.cookies.get("user_id")
     if not user_id:
@@ -317,7 +317,7 @@ async def check_cert(request: Request):
         return {"has_cert": True}
     return {"has_cert": False}
 
-@app.post("/generate-certificate")
+@app.post("/api/generate-certificate")
 async def generate_certificate(request: Request):
     user_id = request.cookies.get("user_id")
     if not user_id:

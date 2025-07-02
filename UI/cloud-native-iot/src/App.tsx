@@ -47,7 +47,7 @@ const AppContent: React.FC = () => {
    useEffect(() => {
     const checkCertificate = async () => {
       try {
-        const response = await axios.get('http://localhost:8000/check-cert', {
+        const response = await axios.get('http://localhost:8000/api/check-cert', {
           withCredentials: true, // Important for cookies
         });
         
@@ -55,7 +55,7 @@ const AppContent: React.FC = () => {
         
         if (response.data.has_cert) {
           // Load instances only if certificate exists
-          axios.get('http://localhost:8000/akri-instances', { withCredentials: true })
+          axios.get('http://localhost:8000/api/akri-instances', { withCredentials: true })
             .then(response => {
               const fetchedInstances = response.data.instances.map((item: any) => ({
                 uuid: item.metadata.uid,
@@ -79,7 +79,7 @@ const AppContent: React.FC = () => {
   }, [navigate]);
 
   const handleFilter = () => {
-    axios.post('http://localhost:8000/filter-instances', filters)
+    axios.post('http://localhost:8000/api/filter-instances', filters)
       .then(response => {
         setFilteredInstances(response.data);
         setSelectedUuids([]);

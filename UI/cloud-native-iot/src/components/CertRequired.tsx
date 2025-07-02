@@ -9,7 +9,7 @@ const CertRequired: React.FC = () => {
 
   const handleGenerateCert = async () => {
     try {
-      const response = await axios.post('http://localhost:8000/generate-certificate', {}, { 
+      const response = await axios.post('http://localhost:8000/api/generate-certificate', {}, { 
         withCredentials: true 
       });
       const pfxData = response.data.pfx;
@@ -32,7 +32,7 @@ const CertRequired: React.FC = () => {
       
       // Νέα επαλήθευση
       try {
-        const verification = await axios.get('http://localhost:8000/check-cert', {
+        const verification = await axios.get('http://localhost:8000/api/check-cert', {
           withCredentials: true
         });
         

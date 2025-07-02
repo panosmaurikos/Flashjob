@@ -18,12 +18,12 @@ const RolloutForm: React.FC<RolloutFormProps> = ({ selectedUuids, setParentStatu
     e.preventDefault();
     const data = { uuids: selectedUuids, firmware, flashjobPodImage, step, delay };
     try {
-      const response = await axios.post("http://localhost:8000/generate-yaml", data);
+      const response = await axios.post("http://localhost:8000/api/generate-yaml", data);
       const message = JSON.stringify(response.data);
       setStatusMessage(message);
       setParentStatus(null); // Clear parent status to avoid duplication
       // Send notification to logs
-      await axios.post("http://localhost:8000/logs/add", {
+      await axios.post("http://localhost:8000/api/logs/add", {
         timestamp: Date.now() / 1000,
         message: `Rollout Success: ${message}`,
         type: "success"
@@ -38,7 +38,7 @@ const RolloutForm: React.FC<RolloutFormProps> = ({ selectedUuids, setParentStatu
       setStatusMessage(errorMessage);
       setParentStatus(errorMessage);
       // Send error to logs
-      await axios.post("http://localhost:8000/logs/add", {
+      await axios.post("http://localhost:8000/api/logs/add", {
         timestamp: Date.now() / 1000,
         message: errorMessage,
         type: "error"

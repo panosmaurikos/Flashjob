@@ -19,13 +19,13 @@ const LogPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      let url = 'http://localhost:8000/logs';
+      let url = 'http://localhost:8000/api/logs';
       if (applyFilters && (filterType || startTime || endTime)) {
         const params = new URLSearchParams();
         if (filterType) params.append('type', filterType);
         if (startTime) params.append('start_time', (new Date(startTime).getTime() / 1000).toString());
         if (endTime) params.append('end_time', (new Date(endTime).getTime() / 1000).toString());
-        url = `http://localhost:8000/logs/filter?${params.toString()}`;
+        url = `http://localhost:8000/api/logs/filter?${params.toString()}`;
       }
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -44,7 +44,7 @@ const LogPage: React.FC = () => {
 
   const fetchFileLogs = async () => {
     try {
-      const response = await fetch('http://localhost:8000/logs/file');
+      const response = await fetch('http://localhost:8000/api/logs/file');
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       setFileLogs(data.logs || []);
