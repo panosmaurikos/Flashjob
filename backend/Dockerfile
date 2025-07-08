@@ -1,14 +1,15 @@
-FROM python:3.10-slim
+FROM golang:1.24.3-alpine AS builder
 
 WORKDIR /app
-
-RUN mkdir -p /root/.kube
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
 COPY . .
+RUN go mod init github.com/pmavrikos/cloud-native-iot-UI/backend || true
+RUN go mod tidy
+RUN CGO_ENABLED=0 GOOS=linux go build -o backend main.go
 
+FROM alpine:latest
+WORKDIR /app
+COPY --from=builder /app/backend .
+COPY --from=builder /app/logs ./logs
+RUN mkdir -p /app/flashjobs
 EXPOSE 8000
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./backend"]

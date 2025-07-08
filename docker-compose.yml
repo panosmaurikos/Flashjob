@@ -1,32 +1,69 @@
-version: "3.8"
-
 services:
   backend:
     build:
       context: ./backend
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
-      - ~/.kube:/root/.kube:ro
-      # Αν το αρχείο /etc/rancher/k3s/k3s.yaml υπάρχει στο host σου, κάνε το mount:
-      # - /etc/rancher/k3s/k3s.yaml:/root/.kube/k3s.yaml:ro
-    depends_on:
-      - redis
+      - ./flashjobs:/app/flashjobs
+      - ./backend/logs:/app/logs
+      - ${KUBE_CONFIG_SRC:-/etc/rancher/k3s/k3s.yaml}:/etc/rancher/k3s/k3s.yaml:ro
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - KUBE_CONFIG_PATH=/root/.kube/config
+      - KUBE_CONFIG_PATH=/etc/rancher/k3s/k3s.yaml
+      - KUBERNETES_API_SERVER=https://host.docker.internal:6443
+      - KUBERNETES_INSECURE=true
+      - JWT_SECRET=mysecretkey
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck: 
+      test: ["CMD", "wget", "--spider", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app-network
 
   frontend:
     build:
       context: ./UI/cloud-native-iot
+      dockerfile: Dockerfile
     ports:
       - "5173:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    environment:
+      - VITE_API_URL=/api
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
 
   redis:
-    image: "redis:alpine"
+    image: redis:alpine
     ports:
       - "6380:6379"
+    volumes:
+      - ./redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

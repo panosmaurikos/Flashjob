@@ -4,6 +4,7 @@ import { FaHome, FaUsers, FaCog, FaInfoCircle } from 'react-icons/fa';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './Header.css';
 
+
 interface NavItem {
   path: string;
   title: string;
@@ -40,7 +41,7 @@ const Header: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <div className="wrapper">
       <div className="sidebar-full-height p-3 shadow">
         <div className="mb-4 d-flex align-items-center cursor-pointer" onClick={() => navigate('/home')}>
-          <Image src="/logo.png" width="40" height="40" className="me-2 rounded-circle" alt="Logo" />
+          <Image src="/cniot-logo.png" width="40" height="40" className="me-2 rounded-circle" alt="Logo" />
           <span className="text-light fs-4">Cloud Native IoT</span>
         </div>
         <Nav className="flex-column flex-grow-1">
