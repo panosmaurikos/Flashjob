@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ListGroup, Spinner, Form, Button, Tab, Tabs } from 'react-bootstrap';
+import axios from 'axios';
 
 const LogPage: React.FC = () => {
   const [logs, setLogs] = useState<any[]>([]);
@@ -15,23 +16,37 @@ const LogPage: React.FC = () => {
     fetchFileLogs();
   }, []);
 
-  const fetchLogs = async (applyFilters = false) => {
+  const fetchLogs = async () => {
     setLoading(true);
     setError(null);
     try {
-      let url = 'http://localhost:8000/logs';
-      if (applyFilters && (filterType || startTime || endTime)) {
-        const params = new URLSearchParams();
-        if (filterType) params.append('type', filterType);
-        if (startTime) params.append('start_time', (new Date(startTime).getTime() / 1000).toString());
-        if (endTime) params.append('end_time', (new Date(endTime).getTime() / 1000).toString());
-        url = `http://localhost:8000/logs/filter?${params.toString()}`;
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
       }
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      console.log('Fetched logs:', data.logs);
-      setLogs(data.logs || []);
+      console.log('Fetching logs with token:', token); // Debug token
+      const response = await axios.get('http://localhost:8000/api/logs', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      console.log('Fetched logs:', response.data.logs);
+      let fetchedLogs = response.data.logs || [];
+      // Apply client-side filtering if needed
+      if (filterType || startTime || endTime) {
+        fetchedLogs = fetchedLogs.filter((log: any) => {
+          let pass = true;
+          if (filterType && log.type !== filterType) {
+            pass = false;
+          }
+          if (startTime && log.timestamp < new Date(startTime).getTime() / 1000) {
+            pass = false;
+          }
+          if (endTime && log.timestamp > new Date(endTime).getTime() / 1000) {
+            pass = false;
+          }
+          return pass;
+        });
+      }
+      setLogs(fetchedLogs);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       console.error('Error fetching logs:', err);
@@ -44,23 +59,29 @@ const LogPage: React.FC = () => {
 
   const fetchFileLogs = async () => {
     try {
-      const response = await fetch('http://localhost:8000/logs/file');
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      setFileLogs(data.logs || []);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      console.log('Fetching file logs with token:', token); // Debug token
+      const response = await axios.get('http://localhost:8000/api/logs/file', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      console.log('Fetched file logs:', response.data.logs);
+      setFileLogs(response.data.logs || []);
     } catch (err) {
-      console.error('Error fetching file logs:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Error fetching file logs:', err);
       setFileLogs([`Error loading app.log: ${errorMessage}`]);
     }
   };
 
   const handleFilter = () => {
-    fetchLogs(true);
+    fetchLogs();
   };
 
   const refreshLogs = () => {
-    fetchLogs(false);
+    fetchLogs();
     fetchFileLogs();
   };
 

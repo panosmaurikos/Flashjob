@@ -1,0 +1,15 @@
+apiVersion: application.flashjob.nbfc.io/v1alpha1
+kind: FlashJob
+metadata:
+    name: flashjob-94b49f40
+    namespace: default
+spec:
+    applicationType: null
+    device: null
+    externalIP: null
+    firmware: 'harbor.nbfc.io/nubificus/esp32-psram_resnet:0.1.2ESP32_KEY3 '
+    flashjobPodImage: harbor.nbfc.io/nubificus/iot/esp32-flashjob:local1
+    hostEndpoint: null
+    uuid:
+        - 94b49f40-ab16-4546-bfe3-3b5bf8333dde
+    version: 0.2.0

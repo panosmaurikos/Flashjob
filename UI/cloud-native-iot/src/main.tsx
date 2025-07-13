@@ -7,7 +7,7 @@ import './styles/global.css';
 console.log('Mounting React App...');
 const rootElement = document.getElementById('root');
 if (!rootElement) {
-  console.error('Root element not found!');
+  console.error('Root element not found! Ensure there is a <div id="root"></div> in your index.html');
 } else {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
